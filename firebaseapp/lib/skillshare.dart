@@ -1,3 +1,4 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebaseapp/bio.dart';
 import 'package:flutter/material.dart';
 
@@ -5,6 +6,8 @@ String q1 = '1. Full Name';
 String q2 = '2. Date of Birth';
 String q3 = '3. Country';
 String q4 = '4. City';
+
+final FirebaseDatabase database = FirebaseDatabase.instance;
 
 class SkillShare extends StatefulWidget {
 
@@ -15,7 +18,36 @@ class SkillShare extends StatefulWidget {
 class _SkillShareState extends State<SkillShare> {
 
   final TextStyle _textStyle = TextStyle(color: Colors.blue, fontSize: 24, fontWeight: FontWeight.bold);
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
   Bio bio;
+  DatabaseReference databaseReference;
+  List<Bio> bioList;
+
+  @override
+  void initState() {
+    super.initState();
+    bioList = List();
+    bio = Bio('','','','');
+    databaseReference = database.reference().child('employee_bio');
+    databaseReference.onChildAdded.listen(_onEntryAdded);
+    databaseReference.onChildAdded.listen(_onEntryChanged);
+  }
+
+  void _onEntryAdded(Event event) async{
+    setState(() {
+      bioList.add(Bio.fromSnapshot((event.snapshot)));
+    });
+  }
+
+  void _onEntryChanged(Event event) async{
+    var oldEntry = bioList.singleWhere((entry) {
+      return entry.key == event.snapshot.key;
+    });
+    setState(() {
+      bioList[bioList.indexOf(oldEntry)] = Bio.fromSnapshot((event.snapshot));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +138,7 @@ class _SkillShareState extends State<SkillShare> {
                                         flex: 0,
                                         child: Center(
                                           child: Form(
+                                            key: formKey,
                                             child: Flex(
                                               direction: Axis.vertical,
                                               children: [
@@ -137,7 +170,7 @@ class _SkillShareState extends State<SkillShare> {
                                                 TextFormField(
                                                   initialValue: '',
                                                   validator: (value) => value.isEmpty ? 'This field can\t be empty' : null,
-                                                  onSaved: (newValue) => bio.name = newValue,
+                                                  onSaved: (newValue) => bio.dob = newValue,
                                                 ),
 
                                                 SizedBox(
@@ -154,7 +187,7 @@ class _SkillShareState extends State<SkillShare> {
                                                 TextFormField(
                                                   initialValue: '',
                                                   validator: (value) => value.isEmpty ? 'This field can\t be empty' : null,
-                                                  onSaved: (newValue) => bio.name = newValue,
+                                                  onSaved: (newValue) => bio.country = newValue,
                                                 ),
 
                                                 SizedBox(
@@ -171,7 +204,7 @@ class _SkillShareState extends State<SkillShare> {
                                                 TextFormField(
                                                   initialValue: '',
                                                   validator: (value) => value.isEmpty ? 'This field can\t be empty' : null,
-                                                  onSaved: (newValue) => bio.name = newValue,
+                                                  onSaved: (newValue) => bio.city = newValue,
                                                 ),
 
                                                 SizedBox(
@@ -180,7 +213,9 @@ class _SkillShareState extends State<SkillShare> {
 
                                                 RaisedButton(
                                                   color: Colors.pink,
-                                                  onPressed: () { }, 
+                                                  onPressed: () {
+                                                    _formConfirmation();
+                                                   }, 
                                                   child: Text(
                                                     'Submit',
                                                     style: TextStyle(
@@ -214,4 +249,39 @@ class _SkillShareState extends State<SkillShare> {
       ),
     );
   }
+
+  void _formConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context){
+        return AlertDialog(
+          title: Text('Confirm Submission'),
+          content: Text('Do You want to submit this form?'),
+          actions: [
+            FlatButton(
+              onPressed:() {
+                Navigator.of(context).pop();
+                submit();
+              }, 
+              child: Text('Yes')
+            ),
+            FlatButton(
+              onPressed:() => Navigator.of(context).pop(),
+              child: Text('No')
+            )
+          ],
+        );
+      }
+    );
+  }
+
+  void submit(){
+    final FormState form = formKey.currentState;
+    if(form.validate()){
+      form.save();
+      form.reset();
+      databaseReference.push().set(bio.toJoson());
+    }
+  }
+
 }
